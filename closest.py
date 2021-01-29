@@ -17,14 +17,14 @@ health = lidar.get_health()
 print(health)
 
 def closest_object():
-    int largest_dist = 0
-    int largest_angle = 0
+    largest_dist = 0
+    largest_angle = 0
     # largest = {'distance' : 0, 'theta' : 0}
     for i, scan in enumerate(lidar.iter_scans()):
         for blip in scan:
             #blip[1] = angle, blip[2]=distance
             if(int(round(blip[1])) > 315 or int(round(blip[1])) < 45):
-                if(blip[2] > largest):
+                if(blip[2] > largest_dist):
                     largest_dist = blip[2]
                     largest_angle = blip[1]
             # print(largest_dist)
