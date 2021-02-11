@@ -24,6 +24,15 @@ cameraResolution = {
 
 cameraPixelOffset = 0 # how many pixels of freedom to give to potential collisions based off the center of the frame
 
+maxHeight = 10 # measured in meters, the maximum height our drone is allowed to fly
+minHeight = 1 # measured in meters, the minimum height our drone should try and maintain
+
+maximumCollisionDistance = 10 # measured in meters, any collisions whose distance is less than this value are counted, otherwise we ignore them for now
+
+homeAngleError = .087 # radians, .087 rad = 5 degrees, how much leeway we give when we want to face home
+homePositionLatError = 1 # note one degreee of lat is approx 364,000 ft or 110947.2 meters
+homePositionLongError = 1 # note one degree of long is approx 288,200 ft or 87843.36 meters
+
 def getDistToGround():
     return 3
 
@@ -31,12 +40,12 @@ def getDistToGround():
 def getLidarSnapshot(): # dist in meters, theta in degrees
     points = [
         {
-            "distance": "0.00000",
-            "theta": "0.00000"
+            "distance": 0.00000,
+            "theta": 0.00000
         },
         {
-            "distance": "0.00000",
-            "theta": "0.00000"
+            "distance": 0.0000,
+            "theta": 0.0000
         }
     ]
 
@@ -106,11 +115,17 @@ def getObjectsInPath():
             obj["middle_x"] = x2 - x1 / 2
             obj["middle_y"] = y2 - y1 / 2
             obj["offset_x"] = cameraResolution["x"] / 2 - obj["middle_x"] # positive x indicates box is off-center left, negative indicates box is off-center right
+            
+            # Off center left indicated by offset > 0, therefore we gotta set the angle
+            if (obj["offset_x"] > 0):
+                obj["theta"] = -1 * utils.fit(obj["offset_x"])
+            else:
+                obj["theta"] = utils.fit(obj["offset_x"])
 
             validObjects.insert(obj)
 
     # Sort objects so they appear in order from left to right
-    validObjects.sort(key=utils.extract_offset, reverse=True)
+    validObjects.sort(key=utils.extract_theta, reverse=True)
 
     return validObjects
 
@@ -151,6 +166,7 @@ def getPotentialCollisions():
         clusters.insert({
             "center_x": center_x,
             "center_y": center_y,
+            "distance": math.pow(center_x, 2) + math.pow(center_y, 2),
             "theta": theta
         })
 
@@ -158,6 +174,7 @@ def getPotentialCollisions():
 
     # loop through the clusters and assign them to objects!
     # note that this inheritely has many issues (and is a bad approach) if objects and clusters don't exactly equal
+    # TODO: try to match objects and clusters based on theta and not where they are left to right
     collisions = []
     i = 0
     for cluster in clusters:
@@ -170,8 +187,94 @@ def getPotentialCollisions():
 
     return collisions 
 
+def canMoveUp():
+    return getDistToGround() < maxHeight
+
+def canMoveDown():
+    return getDistToGround() > minHeight
+
+# Determine how far up we can go. This is either the min movement distance (if possible) or the remaining distance that's less than movementDistance
+def getMoveDistanceUp():
+    return curHeight + flyservice.movementDistance < maxHeight and flyservice.movementDistance or maxHeight - curHeight
+
+# Determine how far up we can down. This is either the min movement distance (if possible) or the remaining distance that's less than movementDistance
+def getMoveDistanceDown():
+    return curHeight - flyservice.movementDistance > minHeight and flyservice.movementDistance or curHeight - minHeight
+
+def collisionWithinReach(collision):
+    return collision["distance"] <= maximumCollisionDistance
+
+# Returns True or the angle required to face home
+def isFacingHome():
+    curAngle = flyservice.getAngle()
+    curPos = flyservice.getPosition()
+
+    targetPos = flyservice.getDestinationPosition()
+
+    dX = targetPos["long"] - curPos["long"]
+    dY = targetPos["lat"] - curPos["lat"]
+
+    targetAngle = math.atan2(dY, dX)
+
+    angDif = targetAngle - curAngle
+
+    if (abs(angDif) < homeAngleError):
+        return True
+    
+    return angDif
+
+def faceHome(angleRotation):
+    if (angleRotation < 0):
+        flyservice.turnRight(angleRotation)
+    else:
+        flyservice.turnLeft(angleRotation)
+
+homePositionLatError = 1 # note one degreee of lat is approx 364,000 ft or 110947.2 meters
+homePositionLongError = 1 # note one degree of long is approx 288,200 ft or 87843.36 meters
+def isHome():
+    curPos = flyservice.getPosition()
+    targetPos = flyservice.getDestinationPosition()
+
+    # convert from long and lat to meters
+    dX = (targetPos["long"] - curPos["long"]) * 87843.36
+    dY = (targetPos["lat"] - curPos["lat"]) * 110947.2
+
+    return abs(dX) <= homePositionLatError and abs(dy) <= homePositionLongError
+
+# TODO: shutdown drone, account for camera being higher than drone landing pads
+# note: future improvement, camera to check for collisions while landing
+def land():
+    flyservice.moveDown(getDistToGround())
 
 while True:
     collisions = getPotentialCollisions()
+
+    if (isHome()):
+        land()
+    
+    # Attempt to turn towards our destination
+    if (collisions.count == 0):
+        angHome = isFacingHome()
+
+        if (angHome != True):
+            faceHome(angHome)
+
+    # At this point we should really only be dealing with collisions that are within our drone's bounds
+    shouldMoveForward = True
+    for collision in collisions:
+        if (collisionWithinReach(collision)): 
+            if (canMoveUp()):
+                flyservice.moveUp(getMoveDistanceUp())
+            elif (canMoveDown()):
+                flyservice.moveDown(getMoveDistanceDown())
+            else:
+                print("I seem to be stuck!")
+
+            shouldMoveForward = False
+
+    # TODO: some sort of logic to say "if we've gone all the way up, and all the way down, let's turn and try going around"
+
+    if (shouldMoveForward):
+        flyservice.moveForward()
 
     time.sleep(loopDelay)
