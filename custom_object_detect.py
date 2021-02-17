@@ -8,14 +8,9 @@ execution_path = os.getcwd()
 
 detector = CustomObjectDetection()
 detector.setModelTypeAsYOLOv3()
-print(os.path.join(execution_path, "objects", "models", "detection_model-ex-012--loss-0020.310.h5"))
-print(os.path.join(execution_path, "objects", "json", "detection_config.json"))
-
-detector.setModelPath(os.path.join(execution_path, "objects", "models", "detection_model-ex-012--loss-0020.310.h5"))
+detector.setModelPath(os.path.join(execution_path, "objects", "models", "detection_model-ex-085--loss-0014.216.h5"))
 detector.setJsonPath(os.path.join(execution_path, "objects", "json", "detection_config.json"))
 detector.loadModel()
-
-#custom = detector.CustomObject(tree=True, pole=True)
 
 pipeline = rs.pipeline()
 config = rs.config()
@@ -36,10 +31,9 @@ try:
         rgb_left_image = np.stack((left_image,)*3, axis=-1)
         #right_image = np.asanyarray(right_frame.get_data())
 
-        # Apply colormap on depth image (image must be converted to 8-bit per pixel first)
-        #depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.03), cv2.COLORMAP_JET)
-
         # Stack both images horizontally
+        # Left image is source
+        # Right image is after objects are detected
         
         detector_image, detections = detector.detectObjectsFromImage(input_image=rgb_left_image, input_type="array", output_type="array", minimum_percentage_probability=30)
         images = np.hstack((rgb_left_image, detector_image))
