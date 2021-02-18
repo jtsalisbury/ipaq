@@ -4,51 +4,43 @@ import numpy as np
 import cv2
 import os
 
-execution_path = os.getcwd()
-
-detector = CustomObjectDetection()
-detector.setModelTypeAsYOLOv3()
-detector.setModelPath(os.path.join(execution_path, "objects", "models", "detection_model-ex-085--loss-0014.216.h5"))
-detector.setJsonPath(os.path.join(execution_path, "objects", "json", "detection_config.json"))
-detector.loadModel()
-
-pipeline = rs.pipeline()
-config = rs.config()
-pipeline.start(config)
-
-try:
-    while True:
-
-        # Wait for a coherent pair of frames: depth and color
-        frames = pipeline.wait_for_frames()
-        #depth_frame = frames.get_depth_frame()
+class Object_Detector():
+    def __init__(self, objects_directory):
+        self.pipeline = rs.pipeline()
+        config = rs.config()
+        self.pipeline.start(config)
+        
+        self.detector = CustomObjectDetection()
+        self.detector.setModelTypeAsYOLOv3()
+        self.detector.setModelPath(os.path.join(objects_directory, "models", "detection_model-ex-085--loss-0014.216.h5"))
+        self.detector.setJsonPath(os.path.join(objects_directory, "json", "detection_config.json"))
+        self.detector.loadModel()
+        
+    def end(self):
+        self.pipeline.stop()
+    
+    def format_data(self, detections):
+        data = []
+        for detection in detections:
+            data.append({'object' : detection['name'], "bbox_1" : detection['box_points'][0:2], "bbox_2" : detection['box_points'][2:4], "confidence" : round(detection['percentage_probability'])})
+        return data
+    
+    def get_objects(self, display_window):
+        frames = self.pipeline.wait_for_frames()
         left_frame = frames.get_fisheye_frame(1)
-        #right_frame = frames.get_fisheye_frame(2)
-
-        # Convert images to numpy arrays
-        #depth_image = np.asanyarray(depth_frame.get_data())
         left_image = np.asanyarray(left_frame.get_data())
         rgb_left_image = np.stack((left_image,)*3, axis=-1)
-        #right_image = np.asanyarray(right_frame.get_data())
-
-        # Stack both images horizontally
-        # Left image is source
-        # Right image is after objects are detected
+        detection_image, detections = self.detector.detectObjectsFromImage(input_image=rgb_left_image, input_type="array", output_type="array", minimum_percentage_probability=30)   
+        if(display_window):
+            cv2.namedWindow('RealSense', cv2.WINDOW_AUTOSIZE)
+            cv2.imshow('RealSense', detection_image)
+            cv2.waitKey(1)
+        return self.format_data(detections)
         
-        detector_image, detections = detector.detectObjectsFromImage(input_image=rgb_left_image, input_type="array", output_type="array", minimum_percentage_probability=30)
-        images = np.hstack((rgb_left_image, detector_image))
-        for eachObject in detections:
-            print(eachObject["name"] , " : ", eachObject["percentage_probability"], " : ", eachObject["box_points"] )
-            print("--------------------------------")
-        # Show images
-        cv2.namedWindow('RealSense', cv2.WINDOW_AUTOSIZE)
-        cv2.imshow('RealSense', images)
-        cv2.waitKey(1)
-
-finally:
-
-    # Stop streaming
-    pipeline.stop()
-    
-    
-# detections = detector.detectCustomObjectsFromImage( custom_objects=custom, input_image=os.path.join(execution_path , "image3.jpg"), output_image_path=os.path.join(execution_path , "image3new-custom.jpg"), minimum_percentage_probability=30)
+if __name__ == "__main__":
+    objects_dir = os.path.join(os.getcwd(), "objects")
+    object_detector = Object_Detector(objects_dir)
+    for i in range(100):
+        objects = object_detector.get_objects(True)
+        print(objects)
+    object_detector.stop()
