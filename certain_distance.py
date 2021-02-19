@@ -16,6 +16,8 @@ health = lidar.get_health()
 print(health)
 
 array = []
+dis_string = "Distance:"
+theta_string = "Theta:"
 def certain_distance(distance):
     for i, scan in enumerate(lidar.iter_scans()):
         for blip in scan:
@@ -26,7 +28,9 @@ def certain_distance(distance):
                 z = blip[1]
                 # only return a range of thetas
                 if (blip[1] >= 315 or blip[1] <= 45):
+                    array.append(dis_string)
                     array.append(y)
+                    array.append(theta_string)
                     array.append(z)
                     print(array)
 
