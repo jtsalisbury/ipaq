@@ -1,6 +1,6 @@
 #function to find closest object
-import json
 from rplidar import RPLidar
+#import json
 lidar = RPLidar('/dev/ttyUSB0')
 
 #check to make sure LIDAR is stopped so it can start in correct position
@@ -16,6 +16,9 @@ print(info)
 health = lidar.get_health()
 print(health)
 
+array = []
+dis_string = "Distance:"
+theta_string = "Theta:"
 def closest_object():
     largest_dist = 0
     largest_angle = 0
@@ -28,9 +31,14 @@ def closest_object():
                     largest_dist = blip[2]
                     largest_angle = blip[1]
             # print(largest_dist)
-            largest = {'distance' : largest_dist, 'theta' : largest_angle}
-            json_data = json.dumps(largest)
-            print(json_data)
+            array.append(dis_string)
+            array.append(largest_dist)
+            array.append(theta_string)
+            array.append(largest_angle)
+            print(array)
+#           largest = {'distance' : largest_dist, 'theta' : largest_angle}
+#           json_data = json.dumps(largest)
+#           print(json_data)
             # with open("sample.json", "w") as outfile: 
             #     json.dump(largest, outfile) 
         #just for testing purposes

@@ -1,5 +1,5 @@
 #function to find closest object
-import json
+#import json
 from rplidar import RPLidar
 lidar = RPLidar('/dev/ttyUSB0')
 
@@ -17,14 +17,19 @@ print(info)
 health = lidar.get_health()
 print(health)
 
+dis_string = "Distance:"
 def list_of_points(thetas):
     for scan in enumerate(lidar.iter_scans()):
         for blip in scan:
             for theta in thetas:
                 if(int(round(blip[1])) == theta):
-                    points = {'distance': blip[2]} 
-                json_data = json.dumps(largest)
-                print(json_data)
+                    points = {'distance': blip[2]}
+                    array.append(dis_string)
+                    array.append(points)
+                    print(array)
+                # not sure why printing largest here?
+                #json_data = json.dumps(largest)
+                #print(json_data)
         if i > 100:
             break
 
