@@ -1,10 +1,13 @@
 import time
 import math
+import os
 
-from sklearn.cluster import DBSCAN
-from sklearn import preprocessing
+# from sklearn.cluster import DBSCAN
+# from sklearn import preprocessing
 
 import flyservice
+from depth_camera import Depth_Finder
+from custom_object_detect import Object_Detector
 import utils
 
 # Note: Critically important that the front-facing camera and lidar are pointing directly ahead
@@ -33,9 +36,15 @@ homeAngleError = .087 # radians, .087 rad = 5 degrees, how much leeway we give w
 homePositionLatError = 1 # note one degreee of lat is approx 364,000 ft or 110947.2 meters
 homePositionLongError = 1 # note one degree of long is approx 288,200 ft or 87843.36 meters
 
-def getDistToGround():
-    return 3
+dir = os.path.join(os.getcwd(), "objects")
+object_detector = Object_Detector(dir, "detection_model-ex-323--loss-0019.126.h5") # this starts the data pipeline from the image recognition 
 
+def getDistToGround():
+    df = Depth_Finder()
+    output = df.get_most_shallow()
+    df.end()
+    return output
+    
 # Returns a list of "hits" from a predefined range
 def getLidarSnapshot(): # dist in meters, theta in degrees
     points = [
@@ -53,20 +62,7 @@ def getLidarSnapshot(): # dist in meters, theta in degrees
 
 # Returns a list of objects in the camera FOV
 def getCameraSnapshot():
-    objects = [
-        { 
-            "object": "tree",
-            "box_1": [20, 20],
-            "box_2": [200, 200]
-        }, 
-        { 
-            "object": "car",
-            "box_1": [600, 600],
-            "box_2": [840, 800]
-        }
-    ]
-
-    return objects
+    return object_detector.get_objects(display_window=False)
 
 # Returns a list of points that are in front of our drone
 def getValidPoints():
