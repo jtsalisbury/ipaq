@@ -13,7 +13,7 @@ def getPosition():
     }
 
 # only return the angle relative to the forward direction
-# this should return in radian
+# this should return in radians
 # this should also increase from the +x counter clockwise
 def getAngle():
     return 1.5 # rad
@@ -28,10 +28,12 @@ def moveDown(distance):
 
     return 2
 
-def turnLeft():
+# ang is in radians, increases counter clockwise from the +x
+def turnLeft(ang):
     return 3
 
-def turnRight():
+# ang is in radians, increases counter clockwise from the +x
+def turnRight(ang):
     return 3
 
 def moveForward(distance):

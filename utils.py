@@ -1,4 +1,5 @@
 import math
+import numpy as np
 
 # Attempts to return the key "theta" from a point json object, otherwise 0
 def extract_theta(pointData):
@@ -10,5 +11,8 @@ def extract_theta(pointData):
 # y = theta, x = pixel center
 # Applies an exponential regression to the pixel center to determine an approximation for the angle theta
 # Note: more pixel and theta points would make this more accurate
-def fit(center_x):   
-    return 15.5068 * math.pow(math.e, 0.0047 * center_x)
+def fit(center_x):
+    return (center_x - 424) / 4.7267
+
+def fitAng(ang):
+    return 4.7267 * ang + 424

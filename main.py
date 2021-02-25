@@ -2,13 +2,16 @@ import time
 import math
 import os
 
-# from sklearn.cluster import DBSCAN
-# from sklearn import preprocessing
+from sklearn.cluster import DBSCAN
+from sklearn import preprocessing
+from collections import defaultdict
 
 import flyservice
-from depth_camera import Depth_Finder
-from custom_object_detect import Object_Detector
+#from depth_camera import Depth_Finder
+#from custom_object_detect import Object_Detector
 import utils
+
+import object_close
 
 # Note: Critically important that the front-facing camera and lidar are pointing directly ahead
 #       Further, they should be placed at the same angle and directly above or below each other
@@ -33,13 +36,15 @@ minHeight = 1 # measured in meters, the minimum height our drone should try and 
 maximumCollisionDistance = 10 # measured in meters, any collisions whose distance is less than this value are counted, otherwise we ignore them for now
 
 homeAngleError = .087 # radians, .087 rad = 5 degrees, how much leeway we give when we want to face home
-homePositionLatError = 1 # note one degreee of lat is approx 364,000 ft or 110947.2 meters
+homePositionLatError = 1 # note one degree of lat is approx 364,000 ft or 110947.2 meters
 homePositionLongError = 1 # note one degree of long is approx 288,200 ft or 87843.36 meters
 
 dir = os.path.join(os.getcwd(), "objects")
-object_detector = Object_Detector(dir, "detection_model-ex-323--loss-0019.126.h5") # this starts the data pipeline from the image recognition 
+#object_detector = Object_Detector(dir, "detection_model-ex-323--loss-0019.126.h5") # this starts the data pipeline from the image recognition 
 
 def getDistToGround():
+    return 3
+
     df = Depth_Finder()
     output = df.get_most_shallow()
     df.end()
@@ -47,22 +52,13 @@ def getDistToGround():
     
 # Returns a list of "hits" from a predefined range
 def getLidarSnapshot(): # dist in meters, theta in degrees
-    points = [
-        {
-            "distance": 0.00000,
-            "theta": 0.00000
-        },
-        {
-            "distance": 0.0000,
-            "theta": 0.0000
-        }
-    ]
-
-    return points
+    return object_close.lidar
 
 # Returns a list of objects in the camera FOV
 def getCameraSnapshot():
-    return object_detector.get_objects(display_window=False)
+    #return object_detector.get_objects(display_window=False)
+
+    return object_close.image
 
 # Returns a list of points that are in front of our drone
 def getValidPoints():
@@ -83,14 +79,14 @@ def getValidPoints():
 
         # We only care about potential collisions that are within our drones bounding box
         if x + moduleOffset <= droneWidth / 2 + 0.5:
-            validPoints.insert([x, y])
+            validPoints.append([x, y])
 
     #validPoints.sort(key=utils.extract_theta)
 
     return validPoints 
 
 def getPointClusters(points):
-    return DBSCAN(eps=0.5, min_samples=5, leaf_size=30).fit(points)
+    return DBSCAN(eps=0.5, min_samples=1, leaf_size=30).fit(points)
 
 def getObjectsInPath():
     middleX = cameraResolution["x"] / 2
@@ -101,10 +97,13 @@ def getObjectsInPath():
     validObjects = []
 
     for obj in objects:
-        x1 = obj["box_1"][0] - cameraPixelOffset
-        x2 = obj["box_2"][0] + cameraPixelOffset
-        y1 = obj["box_1"][1] - cameraPixelOffset
-        y2 = obj["box_2"][1] + cameraPixelOffset
+        x1 = obj["bbox_1"][0] - cameraPixelOffset
+        x2 = obj["bbox_2"][0] + cameraPixelOffset
+        y1 = obj["bbox_1"][1] - cameraPixelOffset
+        y2 = obj["bbox_2"][1] + cameraPixelOffset
+            
+        print(obj)
+        print(middleX, middleY)
 
         # Our middle point is within the bounding box of our detected object
         if (x1 <= middleX and x2 >= middleX and y1 <= middleY and y2 >= middleY):
@@ -118,10 +117,10 @@ def getObjectsInPath():
             else:
                 obj["theta"] = utils.fit(obj["offset_x"])
 
-            validObjects.insert(obj)
+            validObjects.append(obj)
 
     # Sort objects so they appear in order from left to right
-    validObjects.sort(key=utils.extract_theta, reverse=True)
+    validObjects.sort(key=utils.extract_theta)
 
     return validObjects
 
@@ -130,25 +129,30 @@ def getPotentialCollisions():
     clusters = getPointClusters(points)
     objects = getObjectsInPath()
 
-    labels = clusters.labels_ 
+    labels = clusters.labels_
 
     #todo i have no idea if this is right
     # but i want to create cluster centers 
     centerDict = {}
     i = 0
     for label in labels:
-        if (centerDict[label]):
-            centerDict[label] = {
-                "x": centerDict[label]["x"] + points[i][0],
-                "y": centerDict[label]["y"] + points[i][1],
-                "pts": centerDict[label]["pts"] + 1
-            }
-        else:
+        if (label == -1):
+            continue
+
+        label = str(label)
+
+        if (not label in centerDict.keys()):
             centerDict[label] = {
                 "x": points[i][0],
                 "y": points[i][1],
                 "pts": 1
-            }
+            }        
+        else:
+            centerDict[label] = {
+                "x": centerDict[label]["x"] + points[i][0],
+                "y": centerDict[label]["y"] + points[i][1],
+                "pts": centerDict[label]["pts"] + 1
+            }  
 
         i = i + 1
 
@@ -157,16 +161,23 @@ def getPotentialCollisions():
     for label in centerDict:
         center_x = centerDict[label]["x"] / centerDict[label]["pts"]
         center_y = centerDict[label]["y"] / centerDict[label]["pts"]
-        theta = math.atan(center_x / center_y) # relative to our module, note this is in radians
+        if (center_y == 0 and center_x == 0):
+            theta = 0
+        else:
+            theta = math.atan(center_x / center_y) # relative to our module, note this is in radians
 
-        clusters.insert({
+        clusters.append({
             "center_x": center_x,
             "center_y": center_y,
-            "distance": math.pow(center_x, 2) + math.pow(center_y, 2),
+            "distance": math.sqrt(math.pow(center_x, 2) + math.pow(center_y, 2)),
             "theta": theta
         })
 
     clusters.sort(key=utils.extract_theta)
+
+    print("Found", len(clusters), "clusters")
+    print(clusters)
+    print(objects)
 
     # loop through the clusters and assign them to objects!
     # note that this inheritely has many issues (and is a bad approach) if objects and clusters don't exactly equal
@@ -174,12 +185,15 @@ def getPotentialCollisions():
     collisions = []
     i = 0
     for cluster in clusters:
-        if (objects[i]): # if we even have a corresponding image object
+        if (cluster["distance"] == 0): # Note: assuming lidar returns 0 for an angle if there's nothing that it hits
+            continue
+
+        if (i < len(objects)): # if we even have a corresponding image object
             cluster["imageObject"] = objects[i]
             i = i + 1
         
         # always just insert the cluster
-        collisions.insert(cluster)
+        collisions.append(cluster)
 
     return collisions 
 
@@ -191,10 +205,14 @@ def canMoveDown():
 
 # Determine how far up we can go. This is either the min movement distance (if possible) or the remaining distance that's less than movementDistance
 def getMoveDistanceUp():
+    curHeight = getDistToGround()
+
     return curHeight + flyservice.movementDistance < maxHeight and flyservice.movementDistance or maxHeight - curHeight
 
 # Determine how far up we can down. This is either the min movement distance (if possible) or the remaining distance that's less than movementDistance
 def getMoveDistanceDown():
+    curHeight = getDistToGround()
+
     return curHeight - flyservice.movementDistance > minHeight and flyservice.movementDistance or curHeight - minHeight
 
 def collisionWithinReach(collision):
@@ -245,6 +263,9 @@ def land():
 while True:
     collisions = getPotentialCollisions()
 
+    print("Found", len(collisions), "collisions")
+    print(collisions)
+
     if (isHome()):
         land()
     
@@ -260,8 +281,10 @@ while True:
     for collision in collisions:
         if (collisionWithinReach(collision)): 
             if (canMoveUp()):
+                print("moving up")
                 flyservice.moveUp(getMoveDistanceUp())
             elif (canMoveDown()):
+                print("moving down")
                 flyservice.moveDown(getMoveDistanceDown())
             else:
                 print("I seem to be stuck!")
@@ -271,6 +294,7 @@ while True:
     # TODO: some sort of logic to say "if we've gone all the way up, and all the way down, let's turn and try going around"
 
     if (shouldMoveForward):
+        print("moving forward")
         flyservice.moveForward()
 
     time.sleep(loopDelay)

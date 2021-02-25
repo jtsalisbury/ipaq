@@ -1,10 +1,21 @@
-points = [
+
+import synthetic_detection
+
+fake = synthetic_detection.Synthetic_Detector()
+fake2 = synthetic_detection.Synthetic_Detector()
+
+image = []
+image.append(fake.get_object_at_ang(-4))
+image.append(fake2.get_object_at_ang(4))
+
+
+lidar = [
         {
-            "distance": 5.00000,
+            "distance": 0.00000,
             "theta": 0.00000
         },
         {
-            "distance": 5.0000,
+            "distance": 0.0000,
             "theta": 2.0000
         },
         {
@@ -720,7 +731,7 @@ points = [
             "theta": 354.00000
         },
         {
-            "distance": 0.00000,
+            "distance": 5.00000,
             "theta": 356.00000
         },
         {
