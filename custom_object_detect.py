@@ -42,7 +42,7 @@ class Object_Detector():
             cv2.imshow('RealSense', detection_image)
             cv2.waitKey(1)
         self.end()
-        return self.format_data(detections)
+        return (detection_image, self.format_data(detections))
         
 if __name__ == "__main__":
     objects_dir = os.path.join(os.getcwd(), "objects")
