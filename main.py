@@ -88,11 +88,14 @@ def getValidPoints():
 def getPointClusters(points):
     return DBSCAN(eps=0.5, min_samples=1, leaf_size=30).fit(points)
 
+frame = None
 def getObjectsInPath():
     middleX = cameraResolution["x"] / 2
     middleY = cameraResolution["y"] / 2 # first, determine the center of our camera screen
 
-    objects = getCameraSnapshot()
+    snapshot = getCameraSnapshot()
+    objects = snapshot[1]
+    frame = snapshot[0]
 
     validObjects = []
 
@@ -101,9 +104,6 @@ def getObjectsInPath():
         x2 = obj["bbox_2"][0] + cameraPixelOffset
         y1 = obj["bbox_1"][1] - cameraPixelOffset
         y2 = obj["bbox_2"][1] + cameraPixelOffset
-            
-        print(obj)
-        print(middleX, middleY)
 
         # Our middle point is within the bounding box of our detected object
         if (x1 <= middleX and x2 >= middleX and y1 <= middleY and y2 >= middleY):
@@ -177,7 +177,6 @@ def getPotentialCollisions():
 
     print("Found", len(clusters), "clusters")
     print(clusters)
-    print(objects)
 
     # loop through the clusters and assign them to objects!
     # note that this inheritely has many issues (and is a bad approach) if objects and clusters don't exactly equal
@@ -190,6 +189,7 @@ def getPotentialCollisions():
 
         if (i < len(objects)): # if we even have a corresponding image object
             cluster["imageObject"] = objects[i]
+            cv2.putText(frame, "Distance: " + str(cluster["distance"]), (objects["middle_x"], objects["middle_y"]), "FONT_HERSHEY_SIMPLEX", 1, (255, 255, 255), 5)
             i = i + 1
         
         # always just insert the cluster
@@ -290,6 +290,8 @@ while True:
                 print("I seem to be stuck!")
 
             shouldMoveForward = False
+
+            break
 
     # TODO: some sort of logic to say "if we've gone all the way up, and all the way down, let's turn and try going around"
 

@@ -19,13 +19,9 @@ def getAngle():
     return 1.5 # rad
 
 def moveUp(distance):
-    print("Moving up " + str(distance))
-
     return 1
 
 def moveDown(distance):
-    print("Moving down " + str(distance))
-
     return 2
 
 # ang is in radians, increases counter clockwise from the +x
