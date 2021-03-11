@@ -5,6 +5,7 @@ import os
 from sklearn.cluster import DBSCAN
 from sklearn import preprocessing
 from collections import defaultdict
+import list_of_points
 
 import flyservice
 #from depth_camera import Depth_Finder
@@ -52,7 +53,7 @@ def getDistToGround():
     
 # Returns a list of "hits" from a predefined range
 def getLidarSnapshot(): # dist in meters, theta in degrees
-    return object_close.lidar
+    return list_of_points.list_of_points(350, 10)
 
 # Returns a list of objects in the camera FOV
 def getCameraSnapshot():

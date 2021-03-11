@@ -17,21 +17,17 @@ print(info)
 health = lidar.get_health()
 print(health)
 
-dis_string = "Distance:"
-def list_of_points(thetas):
+def list_of_points(thetaLeft, thetaRight):
+    array = []
     for scan in enumerate(lidar.iter_scans()):
         for blip in scan:
-            for theta in thetas:
-                if(int(round(blip[1])) == theta):
-                    points = {'distance': blip[2]}
-                    array.append(dis_string)
-                    array.append(points)
-                    print(array)
-                # not sure why printing largest here?
-                #json_data = json.dumps(largest)
-                #print(json_data)
-        if i > 100:
-            break
+            theta = blip[1]
+
+            if (theta > thetaLeft or theta < thetaRight):
+                point = {'distance': blip[2], 'theta': blip[1]}
+                array.append(point)
+
+        return array
 
 list_of_points([315, 180])
 
