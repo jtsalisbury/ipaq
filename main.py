@@ -1,15 +1,18 @@
 import time
 import math
 import os
+import cv2
 
 from sklearn.cluster import DBSCAN
 from sklearn import preprocessing
 from collections import defaultdict
-import list_of_points
+from list_of_points import LIDAR 
+
+
 
 import flyservice
-#from depth_camera import Depth_Finder
-#from custom_object_detect import Object_Detector
+from depth_camera import Depth_Finder
+from custom_object_detect import Object_Detector
 import utils
 
 import object_close
@@ -41,7 +44,9 @@ homePositionLatError = 1 # note one degree of lat is approx 364,000 ft or 110947
 homePositionLongError = 1 # note one degree of long is approx 288,200 ft or 87843.36 meters
 
 dir = os.path.join(os.getcwd(), "objects")
-#object_detector = Object_Detector(dir, "detection_model-ex-323--loss-0019.126.h5") # this starts the data pipeline from the image recognition 
+object_detector = Object_Detector(dir, "detection_model-ex-323--loss-0019.126.h5") # this starts the data pipeline from the image recognition 
+lidarController = LIDAR("COM3")
+lidarController.start()
 
 def getDistToGround():
     return 3
@@ -53,17 +58,23 @@ def getDistToGround():
     
 # Returns a list of "hits" from a predefined range
 def getLidarSnapshot(): # dist in meters, theta in degrees
-    return list_of_points.list_of_points(350, 10)
+    return lidarController.list_of_points(350, 10)
+
 
 # Returns a list of objects in the camera FOV
 def getCameraSnapshot():
-    #return object_detector.get_objects(display_window=False)
+    return object_detector.get_objects(display_window=False)
 
-    return object_close.image
+    #return object_close.image
 
 # Returns a list of points that are in front of our drone
 def getValidPoints():
+    #lidarController.start()
+    
     points = getLidarSnapshot()
+    while(len(points) == 0):
+        points = getLidarSnapshot()
+    #lidarController.stop()
     validPoints = []
 
     for point in points:
@@ -190,7 +201,7 @@ def getPotentialCollisions():
 
         if (i < len(objects)): # if we even have a corresponding image object
             cluster["imageObject"] = objects[i]
-            cv2.putText(frame, "Distance: " + str(cluster["distance"]), (objects["middle_x"], objects["middle_y"]), "FONT_HERSHEY_SIMPLEX", 1, (255, 255, 255), 5)
+            #cv2.putText(frame, "Distance: " + str(cluster["distance"]), (objects["middle_x"], objects["middle_y"]), "FONT_HERSHEY_SIMPLEX", 1, (255, 255, 255), 5)
             i = i + 1
         
         # always just insert the cluster
@@ -254,7 +265,7 @@ def isHome():
     dX = (targetPos["long"] - curPos["long"]) * 87843.36
     dY = (targetPos["lat"] - curPos["lat"]) * 110947.2
 
-    return abs(dX) <= homePositionLatError and abs(dy) <= homePositionLongError
+    return abs(dX) <= homePositionLatError and abs(dY) <= homePositionLongError
 
 # TODO: shutdown drone, account for camera being higher than drone landing pads
 # note: future improvement, camera to check for collisions while landing
@@ -298,6 +309,6 @@ while True:
 
     if (shouldMoveForward):
         print("moving forward")
-        flyservice.moveForward()
+        flyservice.moveForward(1)
 
     time.sleep(loopDelay)
