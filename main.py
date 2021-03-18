@@ -8,8 +8,6 @@ from sklearn import preprocessing
 from collections import defaultdict
 from list_of_points import LIDAR 
 
-
-
 import flyservice
 from depth_camera import Depth_Finder
 from custom_object_detect import Object_Detector
@@ -46,7 +44,6 @@ homePositionLongError = 1 # note one degree of long is approx 288,200 ft or 8784
 dir = os.path.join(os.getcwd(), "objects")
 object_detector = Object_Detector(dir, "detection_model-ex-323--loss-0019.126.h5") # this starts the data pipeline from the image recognition 
 lidarController = LIDAR("COM3")
-lidarController.start()
 
 def getDistToGround():
     return 3
@@ -63,18 +60,16 @@ def getLidarSnapshot(): # dist in meters, theta in degrees
 
 # Returns a list of objects in the camera FOV
 def getCameraSnapshot():
-    return object_detector.get_objects(display_window=False)
+    return object_detector.get_objects()
 
     #return object_close.image
 
 # Returns a list of points that are in front of our drone
 def getValidPoints():
-    #lidarController.start()
     
     points = getLidarSnapshot()
     while(len(points) == 0):
         points = getLidarSnapshot()
-    #lidarController.stop()
     validPoints = []
 
     for point in points:
@@ -100,11 +95,9 @@ def getValidPoints():
 def getPointClusters(points):
     return DBSCAN(eps=0.5, min_samples=1, leaf_size=30).fit(points)
 
-frame = None
 def getObjectsInPath():
     middleX = cameraResolution["x"] / 2
     middleY = cameraResolution["y"] / 2 # first, determine the center of our camera screen
-
     snapshot = getCameraSnapshot()
     objects = snapshot[1]
     frame = snapshot[0]
@@ -118,7 +111,7 @@ def getObjectsInPath():
         y2 = obj["bbox_2"][1] + cameraPixelOffset
 
         # Our middle point is within the bounding box of our detected object
-        if (x1 <= middleX and x2 >= middleX and y1 <= middleY and y2 >= middleY):
+        if (x1 <= middleX and x2 >= middleX): # and y1 <= middleY and y2 >= middleY):
             obj["middle_x"] = x2 - x1 / 2
             obj["middle_y"] = y2 - y1 / 2
             obj["offset_x"] = cameraResolution["x"] / 2 - obj["middle_x"] # positive x indicates box is off-center left, negative indicates box is off-center right
@@ -134,12 +127,12 @@ def getObjectsInPath():
     # Sort objects so they appear in order from left to right
     validObjects.sort(key=utils.extract_theta)
 
-    return validObjects
+    return (frame, validObjects)
 
-def getPotentialCollisions():
+def getPotentialCollisions(display_window):
     points = getValidPoints()
     clusters = getPointClusters(points)
-    objects = getObjectsInPath()
+    (frame, objects) = getObjectsInPath()
 
     labels = clusters.labels_
 
@@ -201,12 +194,16 @@ def getPotentialCollisions():
 
         if (i < len(objects)): # if we even have a corresponding image object
             cluster["imageObject"] = objects[i]
-            #cv2.putText(frame, "Distance: " + str(cluster["distance"]), (objects["middle_x"], objects["middle_y"]), "FONT_HERSHEY_SIMPLEX", 1, (255, 255, 255), 5)
+            cv2.putText(frame, "Distance: " + str(round(cluster["distance"], 2)), (int(objects[i]["middle_x"]), int(objects[i]["middle_y"])), cv2.FONT_HERSHEY_SIMPLEX, .7, (0, 0, 255), 2)
             i = i + 1
         
         # always just insert the cluster
         collisions.append(cluster)
 
+    if (display_window):
+        cv2.namedWindow('RealSense', cv2.WINDOW_AUTOSIZE)
+        cv2.imshow('RealSense', frame)
+        cv2.waitKey(1)
     return collisions 
 
 def canMoveUp():
@@ -273,7 +270,7 @@ def land():
     flyservice.moveDown(getDistToGround())
 
 while True:
-    collisions = getPotentialCollisions()
+    collisions = getPotentialCollisions(display_window=True)
 
     print("Found", len(collisions), "collisions")
     print(collisions)
