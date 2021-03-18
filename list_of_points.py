@@ -27,7 +27,11 @@ class LIDAR:
 
     def list_of_points(self, thetaLeft, thetaRight):
         array = []
+
+        scanNum = 0
         for scan in enumerate(self.lidar.iter_scans()):
+            scanNum = scanNum + 1
+            print("Got " + str(len(scan[1])) + " points")
             for blip in scan[1]:
                 theta = blip[1]
 
@@ -35,7 +39,13 @@ class LIDAR:
                     point = {'distance': blip[2], 'theta': blip[1]}
                     array.append(point)
 
-            return array
+            if (scanNum >= 99):
+                print("Ran too many scans, stopping!")
+                self.stop()
+                return []
+
+            if (len(array) > 0):
+                return array
             
 if __name__ == "__main__":
     lidar = RPLidar("COM3")
